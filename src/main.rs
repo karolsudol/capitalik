@@ -41,7 +41,7 @@ struct OutputRecord {
 
 async fn fetch_balances(client: &reqwest::Client, address: &str) -> Result<ApiResponse, Box<dyn Error>> {
     let url = format!(
-        "https://api.dune.com/api/echo/v1/balances/evm/{}",
+        "https://api.dune.com/api/echo/v1/balances/evm/{}?exclude_spam_tokens=exclude_spam_tokens",
         address
     );
     
