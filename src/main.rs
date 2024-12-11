@@ -54,7 +54,7 @@ async fn fetch_balances(client: &reqwest::Client, address: &str) -> Result<ApiRe
     println!("Response status: {}", response.status());
     
     let response_text = response.text().await?;
-    println!("Raw response: {}", response_text);
+    // println!("Raw response: {}", response_text);
     
     let response_data: ApiResponse = serde_json::from_str(&response_text)?;
     println!("Got {} balances", response_data.balances.len());
