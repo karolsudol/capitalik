@@ -28,7 +28,7 @@ struct Balance {
 
 #[derive(Debug, Serialize)]
 struct OutputRecord {
-    wallet_address: String,
+    address: String,
     chain: String,
     symbol: String,
     raw_amount: String,
@@ -37,6 +37,7 @@ struct OutputRecord {
     price_usd: f64,
     value_usd: f64,
     date: String,
+    token_address: String,
 }
 
 async fn fetch_balances(client: &reqwest::Client, address: &str) -> Result<ApiResponse, Box<dyn Error>> {
@@ -82,7 +83,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut wtr = csv::WriterBuilder::new()
         .from_path("output.csv")?;
     wtr.write_record(&[
-        "wallet_address",
+        "address",
         "chain",
         "symbol",
         "raw_amount",
@@ -91,6 +92,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "price_usd",
         "value_usd",
         "date",
+        "token_address",
     ])?;
 
     // Process addresses sequentially instead of concurrently
@@ -103,7 +105,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Ok(response) => {
                 for balance in response.balances {
                     // Debug print each balance
-                    println!("Processing balance: {:?}", balance);
+                    // println!("Processing balance: {:?}", balance);
                     
                     // More lenient processing - use default values if None
                     let symbol = balance.symbol.unwrap_or_else(|| "UNKNOWN".to_string());
@@ -125,8 +127,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     };
                     
                     wtr.serialize(OutputRecord {
-                        wallet_address: address.clone(),
-                        chain: balance.chain,
+                        address: address.clone(),
+                        chain: balance.chain.clone(),
                         symbol,
                         raw_amount: balance.amount,
                         adjusted_amount,
@@ -134,6 +136,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         price_usd,
                         value_usd,
                         date,
+                        token_address: balance.address,
                     })?;
                 }
             },
