@@ -28,6 +28,7 @@ struct Balance {
 
 #[derive(Debug, Serialize)]
 struct OutputRecord {
+    address_type: String,
     address: String,
     chain: String,
     symbol: String,
@@ -81,8 +82,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create output CSV writer with explicit overwrite
     let mut wtr = csv::WriterBuilder::new()
+        .has_headers(true)
         .from_path("output.csv")?;
+    
+    // Write headers only once
     wtr.write_record(&[
+        "address_type",
         "address",
         "chain",
         "symbol",
@@ -99,7 +104,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut rdr = csv::Reader::from_path("addresses.csv")?;
     for result in rdr.records() {
         let record = result?;
-        let address = record.get(0).ok_or("Missing address")?.to_string();
+        let address_type = record.get(0).ok_or("Missing type")?.to_string();
+        let address = record.get(1).ok_or("Missing address")?.to_string();
         
         match fetch_balances(&client, &address).await {
             Ok(response) => {
@@ -127,6 +133,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     };
                     
                     wtr.serialize(OutputRecord {
+                        address_type: address_type.clone(),
                         address: address.clone(),
                         chain: balance.chain.clone(),
                         symbol,
