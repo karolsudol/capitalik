@@ -6,9 +6,12 @@ use tokio;
 use csv;
 use std::env;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 struct ApiResponse {
     balances: Vec<Balance>,
+    request_time: String,
+    response_time: String,
 }
 
 #[allow(dead_code)]
@@ -18,6 +21,7 @@ struct Balance {
     chain: String,
     symbol: Option<String>,
     amount: String,
+    decimals: Option<u8>,
     price_usd: Option<f64>,
     value_usd: Option<f64>,
 }
@@ -27,9 +31,12 @@ struct OutputRecord {
     wallet_address: String,
     chain: String,
     symbol: String,
-    amount: String,
+    raw_amount: String,
+    adjusted_amount: f64,
+    decimals: u8,
     price_usd: f64,
     value_usd: f64,
+    date: String,
 }
 
 async fn fetch_balances(client: &reqwest::Client, address: &str) -> Result<ApiResponse, Box<dyn Error>> {
@@ -46,7 +53,10 @@ async fn fetch_balances(client: &reqwest::Client, address: &str) -> Result<ApiRe
     
     println!("Response status: {}", response.status());
     
-    let response_data = response.json::<ApiResponse>().await?;
+    let response_text = response.text().await?;
+    println!("Raw response: {}", response_text);
+    
+    let response_data: ApiResponse = serde_json::from_str(&response_text)?;
     println!("Got {} balances", response_data.balances.len());
 
     Ok(response_data)
@@ -68,15 +78,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .default_headers(headers)
         .build()?;
 
-    // Create output CSV writer
-    let mut wtr = csv::Writer::from_path("output.csv")?;
+    // Create output CSV writer with explicit overwrite
+    let mut wtr = csv::WriterBuilder::new()
+        .from_path("output.csv")?;
     wtr.write_record(&[
         "wallet_address",
         "chain",
         "symbol",
-        "amount",
+        "raw_amount",
+        "adjusted_amount",
+        "decimals",
         "price_usd",
         "value_usd",
+        "date",
     ])?;
 
     // Process addresses sequentially instead of concurrently
@@ -95,14 +109,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     let symbol = balance.symbol.unwrap_or_else(|| "UNKNOWN".to_string());
                     let price_usd = balance.price_usd.unwrap_or(0.0);
                     let value_usd = balance.value_usd.unwrap_or(0.0);
+                    let decimals = balance.decimals.unwrap_or(0);
+                    
+                    // Extract date from response_time (assumes format "YYYY-MM-DDT...")
+                    let date = response.response_time
+                        .split('T')
+                        .next()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    
+                    let adjusted_amount = if let Ok(amount) = balance.amount.parse::<f64>() {
+                        amount / (10_f64.powi(decimals as i32))
+                    } else {
+                        0.0
+                    };
                     
                     wtr.serialize(OutputRecord {
                         wallet_address: address.clone(),
                         chain: balance.chain,
                         symbol,
-                        amount: balance.amount,
+                        raw_amount: balance.amount,
+                        adjusted_amount,
+                        decimals,
                         price_usd,
                         value_usd,
+                        date,
                     })?;
                 }
             },
