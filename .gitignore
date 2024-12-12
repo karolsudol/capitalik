@@ -27,4 +27,5 @@ Cargo.lock
 addresses.csv
 addresses_backup.csv
 output.csv
-
+balances.csv
+transactions.csv
