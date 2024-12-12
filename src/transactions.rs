@@ -7,13 +7,13 @@ pub async fn fetch_transactions(
     offset: Option<&str>
 ) -> Result<TransactionApiResponse, Box<dyn Error>> {
     let mut url = format!(
-        "https://api.dune.com/api/echo/v1/transactions/evm/{}",
-        // "https://api.dune.com/api/echo/v1/transactions/evm/{}?chain_ids=1",
-        address
+        "https://api.dune.com/api/echo/v1/transactions/evm/{}{}",
+        address,
+        if offset.is_some() { "?" } else { "" }
     );
     
     if let Some(offset_value) = offset {
-        url.push_str(&format!("&offset={}", offset_value));
+        url.push_str(&format!("offset={}", offset_value));
     }
     
     println!("Fetching URL: {}", url);
