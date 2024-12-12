@@ -12,10 +12,18 @@ pub async fn fetch_transactions(
     );
     
     if let Some(offset_value) = offset {
-        url.push_str(&format!("?offset={}", offset_value));
+        url.push_str(&format!("&offset={}", offset_value));
     }
     
+    println!("Fetching URL: {}", url);
     let response = client.get(&url).send().await?;
+    
+    println!("Response status: {}", response.status());
+    
+    if !response.status().is_success() {
+        return Err(format!("API error: {} - {}", response.status(), response.text().await?).into());
+    }
+    
     let response_data = response.json::<TransactionApiResponse>().await?;
     Ok(response_data)
 }
@@ -25,17 +33,19 @@ pub async fn process_transactions(client: &reqwest::Client) -> Result<(), Box<dy
         .has_headers(true)
         .from_path("transactions.csv")?;
         
-    // Write headers
+    // Update headers
     wtr.write_record(&[
         "address_type",
         "address",
         "chain",
-        "block_time",
         "from",
         "to",
-        "hash",
         "value",
         "transaction_type",
+        "gas_price",
+        "max_fee_per_gas",
+        "max_priority_fee_per_gas",
+        "block_time",
     ])?;
 
     let mut rdr = csv::Reader::from_path("addresses.csv")?;
@@ -49,6 +59,16 @@ pub async fn process_transactions(client: &reqwest::Client) -> Result<(), Box<dy
             match fetch_transactions(&client, &address, offset.as_deref()).await {
                 Ok(response) => {
                     for tx in response.transactions {
+                        // Convert hex strings to decimal values
+                        let gas_price = hex_to_decimal(&tx.gas_price) / 1e9;
+                        let max_fee = tx.max_fee_per_gas
+                            .as_ref()
+                            .map_or(gas_price, |fee| hex_to_decimal(fee) / 1e9);
+                        let max_priority_fee = tx.max_priority_fee_per_gas
+                            .as_ref()
+                            .map_or(0.0, |fee| hex_to_decimal(fee) / 1e9);
+                        let value_decimal = hex_to_decimal(&tx.value) / 1e18; // Convert to ETH
+                        
                         wtr.serialize(TransactionOutputRecord {
                             address_type: address_type.clone(),
                             address: address.clone(),
@@ -56,9 +76,11 @@ pub async fn process_transactions(client: &reqwest::Client) -> Result<(), Box<dy
                             block_time: tx.block_time,
                             from: tx.from,
                             to: tx.to,
-                            hash: tx.hash,
-                            value: tx.value,
+                            value: value_decimal.to_string(), // Use decimal value instead of hex
                             transaction_type: tx.transaction_type,
+                            gas_price,
+                            max_fee_per_gas: max_fee,
+                            max_priority_fee_per_gas: max_priority_fee,
                         })?;
                     }
                     
@@ -79,4 +101,9 @@ pub async fn process_transactions(client: &reqwest::Client) -> Result<(), Box<dy
 
     wtr.flush()?;
     Ok(())
+}
+
+fn hex_to_decimal(hex_str: &str) -> f64 {
+    let hex_str = hex_str.trim_start_matches("0x");
+    u64::from_str_radix(hex_str, 16).unwrap_or(0) as f64
 } 

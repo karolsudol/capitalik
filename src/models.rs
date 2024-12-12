@@ -59,6 +59,8 @@ pub struct Transaction {
     pub index: u64,
     pub transaction_type: String,
     pub value: String,
+    pub max_fee_per_gas: Option<String>,
+    pub max_priority_fee_per_gas: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -66,10 +68,12 @@ pub struct TransactionOutputRecord {
     pub address_type: String,
     pub address: String,
     pub chain: String,
-    pub block_time: String,
     pub from: String,
     pub to: String,
-    pub hash: String,
     pub value: String,
     pub transaction_type: String,
+    pub gas_price: f64,
+    pub max_fee_per_gas: f64,
+    pub max_priority_fee_per_gas: f64,
+    pub block_time: String,
 } 
